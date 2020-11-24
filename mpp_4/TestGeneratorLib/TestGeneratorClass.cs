@@ -11,107 +11,75 @@ namespace TestGeneratorLib
     {
         private static bool isAllOpened = false;
         private static bool isAllProcessed = false;
-        private static async Task MakeOpeningTasks(List<string> srcFiles, int limit, BlockingCollection<List<string>> content)
+
+        private static void ReadAndAddToTheNextQueueFileAsync(string file, BlockingCollection<List<string>> content)
         {
+            var fileName = file.Substring(file.Length - 5);
+            var fileContent = File.ReadAllLines(file);
+            var res = content.TryAdd(fileContent.ToList());
             //DEBUG
-            Console.WriteLine("I am in MakeOpeningTasks()");
-            while (srcFiles.Count != 0)
+            Console.WriteLine("Stop reading task " + fileName);
+            
+        }
+        private static void MakeOpeningTasks(List<string> srcFiles, int limit, BlockingCollection<List<string>> content)
+        {
+            List<Task> tasks = new List<Task>();
+            if (limit >= srcFiles.Count)
+                limit = srcFiles.Count;
+            for (int i = 0; i < limit; i++)
             {
-                if (limit >= srcFiles.Count)
-                    limit = srcFiles.Count;
-
-                List<Task> tasks = new List<Task>();
-                for (int i = 0; i < limit; i++)
+                var temp = srcFiles[0];
+                tasks.Add(Task.Run(() =>
                 {
-                    //DEBUG
-                    var fileName = srcFiles[i].Substring(srcFiles[i].Length - 5);
-                    Console.WriteLine("Start reading: " + fileName);
-                    var fileContent = await File.ReadAllLinesAsync(srcFiles[i]);
-                    //DEBUG 
-                    Console.WriteLine("Stop reading: " + fileName);
-                    srcFiles.RemoveAt(i);
-                    tasks.Add(Task.Run(() =>
-                    {
-                        //DEBUG
-                        Console.WriteLine("Start task: " + fileName);
-                        //DEBUG VARIABLE
-                        var res = content.TryAdd(fileContent.ToList());
-                        Console.WriteLine("Stop task: " + fileName);
-                        //DEBUG
-                    }));
-
-                }
-
-                Task.WaitAny(tasks.ToArray());
-                //Task t =  Task.WhenAll(tasks);
-                //try
-                //{
-                //    t.Wait();
-                //}
-                //catch { }
+                    ReadAndAddToTheNextQueueFileAsync(temp, content);
+                }));
+                srcFiles.RemoveAt(0);
 
             }
 
+            Task.WaitAny(tasks.ToArray());
 
-            isAllOpened = true;
+             //return Task.WhenAll();
 
         }
 
-        //IT Will be async after creating real processing async method to call inside it
-
+      
         private static void MakeProcessingTasks(BlockingCollection<List<string>> content, int limit,
                                                       BlockingCollection<List<string>> outputContent)
         {
-            while (content.Count != 0 || !isAllOpened)
+            List<Task> tasks = new List<Task>();
+           
+           if (limit > content.Count)
+               limit = content.Count;
+            for (int i = 0; i < limit; i++)
             {
-                Console.WriteLine("I am in MakeProcessingTasks()");
-                if (limit > content.Count)
-                    limit = content.Count;
-
-                List<Task> tasks = new List<Task>();
-                for (int i = 0; i < limit; i++)
+                List<string> temp = new List<string>();
+                if (content.TryTake(out temp))
                 {
                     tasks.Add(Task.Run(() =>
                     {
-                        List<string> temp = new List<string>();
                         //DEBUG
-                        Console.WriteLine("I am trying to read value");
-                        if (content.TryTake(out temp))
-                        {
-                            //DEBUG
-                            Console.WriteLine("I have already read the value");
-                            //DEBUG
-                            temp.Add("shhhhhhhhhhhhh");
-                            outputContent.TryAdd(temp);
-                        }
+                        temp.Add("shhhhhhhhhhhhh");
+                        outputContent.TryAdd(temp);
                         //DEBUG
                         Console.WriteLine("Particular file " + i.ToString() + "is processed");
                     }));
 
 
                 }
+            }   
 
-                Task.WaitAny(tasks.ToArray());
-
-            }
-
-
-            isAllProcessed = true;
-
+            Task.WaitAny(tasks.ToArray());
         }
 
         private static void MakeWritingTasks(BlockingCollection<List<string>> contentToWrite, int limit, string pathToWriteInFolder)
         {
             Console.WriteLine("I am in MakeWritingTasks()");
-            while (contentToWrite.Count != 0 || !isAllProcessed)
-            {
-                if (limit > contentToWrite.Count)
+            if (limit > contentToWrite.Count)
                     limit = contentToWrite.Count;
-
-                List<Task> tasks = new List<Task>();
+            List<Task> tasks = new List<Task>();
                 for (int i = 0; i < limit; i++)
                 {
-
                     tasks.Add(Task.Run(() =>
                     {
                         List<string> temp = new List<string>();
@@ -128,11 +96,29 @@ namespace TestGeneratorLib
 
                 }
 
-
-            }
-
             Task.WaitAll();
 
+
+        }
+
+        private static void Func1(List<string> inl, int limit, BlockingCollection<List<string>> outl )
+        {
+            while (inl.Count != 0)
+            {
+                MakeOpeningTasks(inl, limit, outl);
+            }
+
+            isAllOpened = true;
+           
+        }
+
+        private static void Func2(BlockingCollection<List<string>> inl, int limit, BlockingCollection<List<string>> outl)
+        {
+            while((inl.Count != 0) || (!isAllOpened))
+            {
+                MakeProcessingTasks(inl, limit, outl);
+            }
+            isAllProcessed = true;
 
         }
         /// <summary>
@@ -141,17 +127,17 @@ namespace TestGeneratorLib
         /// limits[2] - limit for simulteniously writing in new files
         /// To make limitless queue for particular action pass zero as parameter.
         /// </summary>
-        public static async Task Generate(List<string> srcFiles, string outFolderPath, List<int> limits)
+        public static Task Generate(List<string> srcFiles, string outFolderPath, List<int> limits)
         {
             BlockingCollection<List<string>> srcFilesContents = new BlockingCollection<List<string>>();
             BlockingCollection<List<string>> generatedTestsFilesStrings = new BlockingCollection<List<string>>();
-            //DEBUG
-            Console.WriteLine("I am in Generate Method");
+            
+            var task1 = Task.Run(() => { Func1(srcFiles,limits[0],srcFilesContents); });
 
-
-            await MakeOpeningTasks(srcFiles, limits[0], srcFilesContents);
-            MakeProcessingTasks(srcFilesContents, limits[1], generatedTestsFilesStrings);
-            MakeWritingTasks(generatedTestsFilesStrings, limits[2], outFolderPath);
+            var task2 = Task.Run(() => { Func2(srcFilesContents, limits[1], generatedTestsFilesStrings); });
+            return  Task.WhenAll(task1, task2);
+          
+            //MakeWritingTasks(generatedTestsFilesStrings, limits[2], outFolderPath);
 
 
 
