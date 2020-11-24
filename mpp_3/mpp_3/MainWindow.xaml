@@ -1,0 +1,35 @@
+﻿<Window x:Class="mpp_3.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:mpp_3"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+
+    <DockPanel>
+        <Button DockPanel.Dock="Bottom" Command="{Binding OpenFileCommand}" Height="40" 
+                Content="Find Assembly..." Background="DimGray"/>
+
+
+        <TreeView x:Name="AssemblyView" ItemsSource="{Binding Collection}" Foreground="White" Background="Black" 
+                  DockPanel.Dock="Left" BorderBrush="White" Width="300">
+            <TreeView.ItemContainerStyle>
+                <Style TargetType="{x:Type TreeViewItem}">
+                    <Setter Property="IsExpanded" Value="{Binding IsMembersShowed, Mode=TwoWay}" />
+                    <Setter Property="Foreground" Value="White"/>
+                </Style>
+            </TreeView.ItemContainerStyle>
+
+            <TreeView.ItemTemplate>
+                <HierarchicalDataTemplate ItemsSource="{Binding Members}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="{Binding MemberName}" />
+                    </StackPanel>
+                </HierarchicalDataTemplate>
+            </TreeView.ItemTemplate>
+        </TreeView>
+        <TextBox DockPanel.Dock="Right" IsReadOnly="True" Foreground="Red" Background="Black"
+                 Text="{Binding ErrorMessages, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+    </DockPanel>
+</Window>
