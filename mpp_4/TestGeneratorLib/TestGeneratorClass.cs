@@ -14,7 +14,10 @@ namespace TestGeneratorLib
 
         private static void ReadAndAddToTheNextQueueFileAsync(string file, BlockingCollection<List<string>> content)
         {
+            //DEBUG
             var fileName = file.Substring(file.Length - 5);
+            //DEBUG
+            Console.WriteLine("Start reading task " + fileName);
             var fileContent = File.ReadAllLines(file);
             var res = content.TryAdd(fileContent.ToList());
             //DEBUG
@@ -70,53 +73,66 @@ namespace TestGeneratorLib
             }   
 
             Task.WaitAny(tasks.ToArray());
+
         }
 
-        private static void MakeWritingTasks(BlockingCollection<List<string>> contentToWrite, int limit, string pathToWriteInFolder)
+        private static void MakeWritingTasks(BlockingCollection<List<string>> contentToWrite, int limit, string pathToFolder)
         {
             Console.WriteLine("I am in MakeWritingTasks()");
             if (limit > contentToWrite.Count)
                     limit = contentToWrite.Count;
             List<Task> tasks = new List<Task>();
-                for (int i = 0; i < limit; i++)
+            for (int i = 0; i < limit; i++)
+            {
+                List<string> temp = new List<string>();
+                var FILE_NAME = pathToFolder + "\\" + Guid.NewGuid().ToString() + ".txt";
+                if (contentToWrite.TryTake(out temp))
                 {
                     tasks.Add(Task.Run(() =>
                     {
-                        List<string> temp = new List<string>();
-                        //DEBUG
-                        var FILE_NAME = pathToWriteInFolder + "\\" + Guid.NewGuid().ToString() + ".txt";
-                        if (contentToWrite.TryTake(out temp))
-                        {
-                            File.WriteAllLinesAsync(FILE_NAME, temp);
-                        }
-
+                         File.WriteAllLines(FILE_NAME, temp);
                         //DEBUG
                         Console.WriteLine("File " + FILE_NAME + "is wrote to folder");
                     }));
-
+                   
                 }
+                
 
-            Task.WaitAll();
+            }
+
+            Task.WaitAll(tasks.ToArray());
 
 
         }
 
-        private static void Func1(List<string> inl, int limit, BlockingCollection<List<string>> outl )
+        private static void ProcessAllOpening(List<string> fileNames, int limit, BlockingCollection<List<string>> FilesContents )
         {
-            while (inl.Count != 0)
+            while (fileNames.Count != 0)
             {
-                MakeOpeningTasks(inl, limit, outl);
+                MakeOpeningTasks(fileNames, limit, FilesContents);
             }
 
             isAllOpened = true;
            
         }
 
-        private static void Func2(BlockingCollection<List<string>> inl, int limit, BlockingCollection<List<string>> outl)
+        private static void ProcessAllGenerating(BlockingCollection<List<string>> srcFilesContents,
+                                                 int limit, BlockingCollection<List<string>> processedFilesContents)
         {
-            while((inl.Count != 0) || (!isAllOpened))
+            while((srcFilesContents.Count != 0) || (!isAllOpened))
             {
-                MakeProcessingTasks(inl, limit, outl);
+                MakeProcessingTasks(srcFilesContents, limit, processedFilesContents);
+            }
+            isAllProcessed = true;
+
+        }
+
+        private static void ProcessAllWriting(BlockingCollection<List<string>> processedFilesContents,
+                                                int limit, string outputFolderPath)
+        {
+            while ((processedFilesContents.Count != 0) || (!isAllProcessed))
+            {
+                MakeWritingTasks(processedFilesContents, limit, outputFolderPath);
             }
             isAllProcessed = true;
 
@@ -127,20 +143,17 @@ namespace TestGeneratorLib
         /// limits[2] - limit for simulteniously writing in new files
         /// To make limitless queue for particular action pass zero as parameter.
         /// </summary>
-        public static Task Generate(List<string> srcFiles, string outFolderPath, List<int> limits)
+        public static Task Generate(List<string> srcFilesNames, string outputFolderPath, List<int> limits)
         {
             BlockingCollection<List<string>> srcFilesContents = new BlockingCollection<List<string>>();
-            BlockingCollection<List<string>> generatedTestsFilesStrings = new BlockingCollection<List<string>>();
+            BlockingCollection<List<string>> generatedTestsFilesContents = new BlockingCollection<List<string>>();
             
-            var task1 = Task.Run(() => { Func1(srcFiles,limits[0],srcFilesContents); });
-
-            var task2 = Task.Run(() => { Func2(srcFilesContents, limits[1], generatedTestsFilesStrings); });
-            return  Task.WhenAll(task1, task2);
+            var task1 = Task.Run(() => { ProcessAllOpening(srcFilesNames,limits[0],srcFilesContents); });
+            var task2 = Task.Run(() => { ProcessAllGenerating(srcFilesContents, limits[1], generatedTestsFilesContents); });
+            var task3 = Task.Run(() => { ProcessAllWriting(generatedTestsFilesContents, limits[2], outputFolderPath); ; });
+            return  Task.WhenAll(task1, task2,task3);
           
-            //MakeWritingTasks(generatedTestsFilesStrings, limits[2], outFolderPath);
-
-
-
+           
         }
 
     }

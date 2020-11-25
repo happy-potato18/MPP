@@ -12,9 +12,9 @@ namespace mpp_4
         static async Task Main()
         {
             await TestGeneratorClass.Generate((Directory.GetFiles(Directory.GetCurrentDirectory() + "\\src", "*.txt")).ToList(),
-                                                     "D:\\УНИК\\5 сем\\MPP(SPP)\\mpp_4\\mpp_4\\bin\\Debug\\netcoreapp3.1\\out", new List<int>() { 5, 4, 4 });
+                                                     "D:\\УНИК\\5 сем\\MPP(SPP)\\mpp_4\\mpp_4\\bin\\Debug\\netcoreapp3.1\\out", new List<int>() { 3, 4, 4 });
 
-            Console.WriteLine("Done");
+            Console.WriteLine("Done!!!!!!!!!!!!!!!!!!!!!!!!");
             Console.ReadLine();
         }
     }
