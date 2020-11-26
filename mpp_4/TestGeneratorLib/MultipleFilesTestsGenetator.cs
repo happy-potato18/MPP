@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace TestGeneratorLib
 {
-    public static class TestGeneratorClass
+    public static class MultipleFilesTestsGenetator
     {
         private static bool isAllOpened = false;
         private static bool isAllProcessed = false;
@@ -22,7 +22,7 @@ namespace TestGeneratorLib
             var res = content.TryAdd(fileContent.ToList());
             //DEBUG
             Console.WriteLine("Stop reading task " + fileName);
-            
+
         }
         private static void MakeOpeningTasks(List<string> srcFiles, int limit, BlockingCollection<List<string>> content)
         {
@@ -42,18 +42,18 @@ namespace TestGeneratorLib
 
             Task.WaitAny(tasks.ToArray());
 
-             //return Task.WhenAll();
+            //return Task.WhenAll();
 
         }
 
-      
+
         private static void MakeProcessingTasks(BlockingCollection<List<string>> content, int limit,
                                                       BlockingCollection<List<string>> outputContent)
         {
             List<Task> tasks = new List<Task>();
-           
-           if (limit > content.Count)
-               limit = content.Count;
+
+            if (limit > content.Count)
+                limit = content.Count;
             for (int i = 0; i < limit; i++)
             {
                 List<string> temp = new List<string>();
@@ -62,15 +62,15 @@ namespace TestGeneratorLib
                     tasks.Add(Task.Run(() =>
                     {
                         //DEBUG
-                        temp.Add("shhhhhhhhhhhhh");
-                        outputContent.TryAdd(temp);
+                        var t = SingleFileContentTestGenerator.GenerateTestFile(temp);
+                        outputContent.TryAdd(t);
                         //DEBUG
                         Console.WriteLine("Particular file " + i.ToString() + "is processed");
                     }));
 
 
                 }
-            }   
+            }
 
             Task.WaitAny(tasks.ToArray());
 
@@ -80,23 +80,23 @@ namespace TestGeneratorLib
         {
             Console.WriteLine("I am in MakeWritingTasks()");
             if (limit > contentToWrite.Count)
-                    limit = contentToWrite.Count;
+                limit = contentToWrite.Count;
             List<Task> tasks = new List<Task>();
             for (int i = 0; i < limit; i++)
             {
                 List<string> temp = new List<string>();
-                var FILE_NAME = pathToFolder + "\\" + Guid.NewGuid().ToString() + ".txt";
+                var FILE_NAME = pathToFolder + "\\" + Guid.NewGuid().ToString() + ".cs";
                 if (contentToWrite.TryTake(out temp))
                 {
                     tasks.Add(Task.Run(() =>
                     {
-                         File.WriteAllLines(FILE_NAME, temp);
+                        File.WriteAllLines(FILE_NAME, temp);
                         //DEBUG
                         Console.WriteLine("File " + FILE_NAME + "is wrote to folder");
                     }));
-                   
+
                 }
-                
+
 
             }
 
@@ -105,7 +105,7 @@ namespace TestGeneratorLib
 
         }
 
-        private static void ProcessAllOpening(List<string> fileNames, int limit, BlockingCollection<List<string>> FilesContents )
+        private static void ProcessAllOpening(List<string> fileNames, int limit, BlockingCollection<List<string>> FilesContents)
         {
             while (fileNames.Count != 0)
             {
@@ -113,13 +113,13 @@ namespace TestGeneratorLib
             }
 
             isAllOpened = true;
-           
+
         }
 
         private static void ProcessAllGenerating(BlockingCollection<List<string>> srcFilesContents,
                                                  int limit, BlockingCollection<List<string>> processedFilesContents)
         {
-            while((srcFilesContents.Count != 0) || (!isAllOpened))
+            while ((srcFilesContents.Count != 0) || (!isAllOpened))
             {
                 MakeProcessingTasks(srcFilesContents, limit, processedFilesContents);
             }
@@ -143,17 +143,17 @@ namespace TestGeneratorLib
         /// limits[2] - limit for simulteniously writing in new files
         /// To make limitless queue for particular action pass zero as parameter.
         /// </summary>
-        public static Task Generate(List<string> srcFilesNames, string outputFolderPath, List<int> limits)
+        public static Task GenerateAsync(List<string> srcFilesNames, string outputFolderPath, List<int> limits)
         {
             BlockingCollection<List<string>> srcFilesContents = new BlockingCollection<List<string>>();
             BlockingCollection<List<string>> generatedTestsFilesContents = new BlockingCollection<List<string>>();
-            
-            var task1 = Task.Run(() => { ProcessAllOpening(srcFilesNames,limits[0],srcFilesContents); });
+
+            var task1 = Task.Run(() => { ProcessAllOpening(srcFilesNames, limits[0], srcFilesContents); });
             var task2 = Task.Run(() => { ProcessAllGenerating(srcFilesContents, limits[1], generatedTestsFilesContents); });
             var task3 = Task.Run(() => { ProcessAllWriting(generatedTestsFilesContents, limits[2], outputFolderPath); ; });
-            return  Task.WhenAll(task1, task2,task3);
-          
-           
+            return Task.WhenAll(task1, task2, task3);
+
+
         }
 
     }

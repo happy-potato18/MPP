@@ -11,9 +11,9 @@ namespace mpp_4
     {
         static async Task Main()
         {
-            await TestGeneratorClass.Generate((Directory.GetFiles(Directory.GetCurrentDirectory() + "\\src", "*.txt")).ToList(),
-                                                     "D:\\УНИК\\5 сем\\MPP(SPP)\\mpp_4\\mpp_4\\bin\\Debug\\netcoreapp3.1\\out", new List<int>() { 3, 4, 4 });
-
+            await MultipleFilesTestsGenetator.GenerateAsync((Directory.GetFiles(Directory.GetCurrentDirectory() + "\\src", "*.cs")).ToList(),
+                                                     "D:\\УНИК\\5 сем\\MPP(SPP)\\mpp_4\\mpp_4\\bin\\Debug\\netcoreapp3.1\\out", new List<int>() { 2, 2, 2 });
+            
             Console.WriteLine("Done!!!!!!!!!!!!!!!!!!!!!!!!");
             Console.ReadLine();
         }
