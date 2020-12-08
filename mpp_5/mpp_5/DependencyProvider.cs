@@ -48,7 +48,7 @@ namespace mpp_5
 
         private object GetOrCreateSingletonInstance(Type implType, List<object> argumentsList)
         {
-            object instance = new object();
+            dynamic instance = null;
             object locker = new object();
             if (!_singletonCache.ContainsKey(implType))
             {
@@ -56,14 +56,15 @@ namespace mpp_5
                 {
                     if (!_singletonCache.ContainsKey(implType))
                     {
-
-                        _singletonCache.Add(implType, CreateObject(implType, argumentsList));
+                        instance = CreateObject(implType, argumentsList);
+                        _singletonCache.Add(implType, instance);
+                        
                     }
                 }
             }
             else
             {
-                instance = _singletonCache[implType];
+                return _singletonCache[implType];
             }
 
             return instance;
@@ -72,11 +73,14 @@ namespace mpp_5
 
         private object CreateObject(Type implType, List<object> argumentsList)
         {
+          
             if (argumentsList.Count != 0)
                 return Activator.CreateInstance(implType, argumentsList.ToArray());
             else
                 return Activator.CreateInstance(implType);
         }
+
+        
 
         private object ProduceCurrentImplementation(TypeDef impl)
         {
@@ -85,7 +89,6 @@ namespace mpp_5
                               .OrderByDescending(constr => constr.GetParameters().Length)
                               .First().GetParameters();
             var argumentsList = new List<object>();
-            //List<dynamic> resolvedNestedImpls;
             if (parameters.Length != 0)
             {
                 foreach (var parameter in parameters)
@@ -107,10 +110,33 @@ namespace mpp_5
             else
                 return CreateObject(implType, argumentsList);
         }
-        
+
+        private object ProduceCurrentGenericImplementation(TypeDef impl, Type closedGenericType, object dependency)
+        {
+            if(impl.IsSingleton)
+            {
+                return GetOrCreateSingletonInstance(closedGenericType,new List<object>() {dependency});
+            }
+            else 
+                return CreateObject(closedGenericType, new List<object>() { dependency });
+        }
+
         private dynamic ResolveAbstractionConfig(Type abstractionType)
         {
             var config = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType);
+            if((config == null)  && (abstractionType.IsGenericType ) )
+            {
+                var abstrConfig = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType.GetGenericTypeDefinition());
+                var implClass = abstrConfig[0];
+                Type nestedType = abstractionType.GetGenericArguments()[0];
+                var nestedTypeImpl = _dependencyConfiguration.GetConfigurationForAbstraction(nestedType)[0];
+                object resolvedNestedImpl = ProduceCurrentImplementation(nestedTypeImpl);
+                Type closedGenericType = implClass.Type.MakeGenericType(new Type[] { nestedType });
+                var genericImpl = ProduceCurrentGenericImplementation(implClass, closedGenericType, resolvedNestedImpl);
+                return genericImpl;
+                
+            }
+
             if (config.Count > 1)
             {
                 var resolvedImplsList = new List<object>();
@@ -122,7 +148,7 @@ namespace mpp_5
             }
             else
             {
-                var implClass =config[0];
+                var implClass = config[0];
                 object instance = ProduceCurrentImplementation(implClass);
                 return instance;
             }
@@ -151,7 +177,9 @@ namespace mpp_5
             return resolvedImpls;
            
         }
-      
+
+       
+
         public dynamic Resolve<TAbstraction>()
         {
             if(typeof(TAbstraction).GetInterface("IEnumerable") != null)
@@ -160,7 +188,7 @@ namespace mpp_5
                 var method = typeof(DependencyProvider).GetMethod("ProduceMultipleImplementations", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                 var resolvedImplsList = method.MakeGenericMethod(new Type[] { abstrType }).Invoke(this,new object[] { });
                 return resolvedImplsList;
-            }
+            }           
             else
                 return ResolveAbstractionConfig(typeof(TAbstraction));
         }
