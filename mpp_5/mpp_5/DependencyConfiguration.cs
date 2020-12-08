@@ -6,33 +6,42 @@ namespace mpp_5
 {
     public class DependencyConfiguration
     {
-        private Dictionary<Type, List<TypeDef>> configurations;
+        public  Dictionary<Type, List<TypeDef>> Configurations { get; private set; }
         
         public DependencyConfiguration()
         {
-            configurations = new Dictionary<Type, List<TypeDef>>();
+            Configurations = new Dictionary<Type, List<TypeDef>>();
+        }
+
+        public List<TypeDef> GetConfigurationForAbstraction(Type abstractionType)
+        {
+            try
+            {
+                return Configurations[abstractionType];
+            }
+            catch(KeyNotFoundException)
+            {
+                return null;
+            }
+            
         }
 
         private void Register(Type abstractionType, TypeDef implementationValue)
         {
-            if ((abstractionType.IsClass) &&
-                ((implementationValue.Type.BaseType == abstractionType) ||
-                  (implementationValue.Type.GetInterface(abstractionType.Name) != null)
-                )
-             )
+           
+            var abstractionKey = abstractionType;
+            if (Configurations.ContainsKey(abstractionKey))
             {
-                var abstractionKey = abstractionType;
-                if (configurations.ContainsKey(abstractionKey))
-                    configurations[abstractionKey].Add(implementationValue);
-                else
+                if (!Configurations[abstractionKey]
+                                   .Any(typeDef => typeDef.Type == implementationValue.Type))
                 {
-                    if (!configurations[abstractionKey]
-                                     .Any(typeDef => typeDef.Type == implementationValue.Type))
-                    {
-                        configurations.Add(abstractionKey, new List<TypeDef>() { implementationValue });
-                    }
-
+                    Configurations[abstractionKey].Add(implementationValue);
                 }
+            }
+                
+            else
+            {
+                Configurations.Add(abstractionKey, new List<TypeDef>() { implementationValue });
             }
 
         }
