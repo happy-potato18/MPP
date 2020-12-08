@@ -57,8 +57,8 @@ namespace Tests
             dependencies.RegisterTransient<IService, ServiceImpl1>();
             dependencies.RegisterTransient<IService, ServiceImpl2>();
             var provider = new DependencyProvider(dependencies);
-            var services = provider.Resolve<IEnumerable<IService>>();
-            Assert.AreEqual(services.GetType(), typeof(IEnumerable<IService>));
+            IEnumerable<IService> services = provider.Resolve<IEnumerable<IService>>();
+            Assert.AreEqual(services.GetType(), typeof(List<IService>));
         }
     }
 }
