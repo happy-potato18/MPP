@@ -9,7 +9,7 @@ namespace mpp_5
     public class DependencyProvider
     {
         private readonly DependencyConfiguration _dependencyConfiguration;
-        private Dictionary<Type,object> _singletonCache;
+        private readonly Dictionary<Type,object> _singletonCache;
 
                
         private bool ValidateConfigurationOrThrowException(DependencyConfiguration configuration)
@@ -78,22 +78,22 @@ namespace mpp_5
                 return Activator.CreateInstance(implType);
         }
 
-        private object ProduceSingleImplementation(Type singleAbstractionType, TypeDef impl)
+        private object ProduceCurrentImplementation(TypeDef impl)
         {
             Type implType = impl.Type;
-            var dependencies = implType.GetConstructors()
+            var parameters = implType.GetConstructors()
                               .OrderByDescending(constr => constr.GetParameters().Length)
                               .First().GetParameters();
             var argumentsList = new List<object>();
-            if (dependencies.Length != 0)
+            //List<dynamic> resolvedNestedImpls;
+            if (parameters.Length != 0)
             {
-                foreach (var dependency in dependencies)
+                foreach (var parameter in parameters)
                 {
-                    if (_dependencyConfiguration.Configurations.ContainsKey(dependency.ParameterType))
+                    if (_dependencyConfiguration.Configurations.TryGetValue(parameter.ParameterType, out List<TypeDef> nestedImpls))
                     {
-                        //foreach(var depImpl in dependencyImpls)
-                        //resolvedDependencies.Add(CreateImplementationInstance(depImpl));
-                        argumentsList.Add(ProduceImplementation(dependency.ParameterType));
+                        var abstractionType = parameter.ParameterType;
+                        argumentsList.Add(ResolveAbstractionConfig(abstractionType));
                     }
                     else
                     {
@@ -101,25 +101,30 @@ namespace mpp_5
                     }
                 }
             }
+            
             if (impl.IsSingleton)
-            {
-
                 return GetOrCreateSingletonInstance(implType, argumentsList);
+            else
+                return CreateObject(implType, argumentsList);
+        }
+        
+        private dynamic ResolveAbstractionConfig(Type abstractionType)
+        {
+            var config = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType);
+            if (config.Count > 1)
+            {
+                var resolvedImplsList = new List<object>();
+                foreach(var implClass in config)
+                {
+                   resolvedImplsList.Add(ProduceCurrentImplementation(implClass));
+                }
+                return resolvedImplsList[0];
             }
             else
             {
-                return CreateObject(implType, argumentsList);
-            }
-        }
-        
-        private dynamic ProduceImplementation(Type abstractionType)
-        {
-            if (abstractionType.GetInterface("IEnumerable") != null)
-            {
-                var abstrType = abstractionType.GetGenericArguments()[0];
-                var method = typeof(DependencyProvider).GetMethod("ProduceMultipleImplementations", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var solvedImplsList = method.MakeGenericMethod(new Type[] { abstrType }).Invoke(this, new object[] { });
-                return solvedImplsList;
+                var implClass =config[0];
+                object instance = ProduceCurrentImplementation(implClass);
+                return instance;
             }
 
             //else if (abstractionType.IsGenericType)
@@ -127,12 +132,7 @@ namespace mpp_5
 
             //    return default;
             //}
-            //else
-            //{
-            var implClass = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType)[0];
-                object instance = ProduceSingleImplementation(abstractionType, implClass);
-                return instance;
-           // }
+           
 
 
                       
@@ -145,13 +145,12 @@ namespace mpp_5
             var resolvedImpls = new List<TAbstraction>();
             foreach (var implClass in implClassList)
             {
-                resolvedImpls.Add((TAbstraction)ProduceSingleImplementation(typeof(TAbstraction), implClass));
+                resolvedImpls.Add((TAbstraction)ProduceCurrentImplementation(implClass));
             }
 
             return resolvedImpls;
            
         }
-
       
         public dynamic Resolve<TAbstraction>()
         {
@@ -159,11 +158,11 @@ namespace mpp_5
             {
                 var abstrType = typeof(TAbstraction).GetGenericArguments()[0];
                 var method = typeof(DependencyProvider).GetMethod("ProduceMultipleImplementations", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var solvedImplsList = method.MakeGenericMethod(new Type[] { abstrType }).Invoke(this,new object[] { });
-                return solvedImplsList;
+                var resolvedImplsList = method.MakeGenericMethod(new Type[] { abstrType }).Invoke(this,new object[] { });
+                return resolvedImplsList;
             }
             else
-                return ProduceImplementation(typeof(TAbstraction));
+                return ResolveAbstractionConfig(typeof(TAbstraction));
         }
 
     }

@@ -8,26 +8,17 @@ namespace Tests
     interface IService { }
     class ServiceImpl : IService
     {
-        public ServiceImpl(IRepository repository)
-        {
-           
-        }
+        public ServiceImpl()  {}
     }
 
-    class ServiceImpl1 : IService
-    {
-       
-    }
+    class ServiceImpl1 : IService   { }
 
-    class ServiceImpl2 : IService
-    {
-       
-    }
+    class ServiceImpl2 : IService { }
 
     interface IRepository { }
     class RepositoryImpl : IRepository
     {
-        public RepositoryImpl() { } 
+        public RepositoryImpl(IService service) { } 
     }
 
     public class Tests
@@ -59,6 +50,18 @@ namespace Tests
             var provider = new DependencyProvider(dependencies);
             IEnumerable<IService> services = provider.Resolve<IEnumerable<IService>>();
             Assert.AreEqual(services.GetType(), typeof(List<IService>));
+        }
+
+        [Test]
+        public void Test3()
+        {
+            var dependencies = new DependencyConfiguration();
+            dependencies.RegisterTransient<IService, ServiceImpl1>();
+            dependencies.RegisterTransient<IService, ServiceImpl2>();
+            dependencies.RegisterTransient<IRepository, RepositoryImpl>();
+            var provider = new DependencyProvider(dependencies);
+            IRepository service = provider.Resolve<IRepository>();
+            Assert.AreEqual(service.GetType(), typeof(RepositoryImpl));
         }
     }
 }
