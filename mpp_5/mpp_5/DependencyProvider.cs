@@ -11,7 +11,9 @@ namespace mpp_5
         private readonly DependencyConfiguration _dependencyConfiguration;
         private readonly Dictionary<Type,object> _singletonCache;
 
-               
+        ///<summary>
+        /// Throws exception when regestered implementation does nor inherit from corresponding abstraction
+        ///    </summary>   
         private bool ValidateConfigurationOrThrowException(DependencyConfiguration configuration)
         {
             foreach (var dc in configuration.Configurations)
@@ -46,6 +48,9 @@ namespace mpp_5
            
         }
 
+        ///<summary>
+        /// Returns current implementation instance from the cache, if exists, otherwise creates new instance and adds it to the cache
+        ///    </summary>  
         private object GetOrCreateSingletonInstance(Type implType, List<object> argumentsList)
         {
             dynamic instance = null;
@@ -63,38 +68,41 @@ namespace mpp_5
                 }
             }
             else
-            {
                 return _singletonCache[implType];
-            }
-
+            
             return instance;
 
         }
 
+        ///<summary>
+        /// Creates and returns instance of "instance per dependency" implementation
+        ///    </summary>  
         private object CreateObject(Type implType, List<object> argumentsList)
         {
-          
             if (argumentsList.Count != 0)
                 return Activator.CreateInstance(implType, argumentsList.ToArray());
             else
                 return Activator.CreateInstance(implType);
         }
 
-        
 
+        ///<summary>
+        /// Checking dependency lifetime type and produce implementation
+        ///    </summary>
         private object ProduceCurrentImplementation(TypeDef impl)
         {
             Type implType = impl.Type;
             var parameters = implType.GetConstructors()
                               .OrderByDescending(constr => constr.GetParameters().Length)
-                              .First().GetParameters();
+                              .First().GetParameters(); // get the most advanced constructor
             var argumentsList = new List<object>();
             if (parameters.Length != 0)
             {
                 foreach (var parameter in parameters)
                 {
-                    if (_dependencyConfiguration.Configurations.TryGetValue(parameter.ParameterType, out List<TypeDef> nestedImpls))
+                    if (_dependencyConfiguration.Configurations.TryGetValue(parameter.ParameterType, out List<TypeDef> nestedImpls)) 
                     {
+                        // if dependency also were registered in config
                         var abstractionType = parameter.ParameterType;
                         argumentsList.Add(ResolveAbstractionConfig(abstractionType));
                     }
@@ -111,32 +119,39 @@ namespace mpp_5
                 return CreateObject(implType, argumentsList);
         }
 
+        ///<summary>
+        /// Produce implementation(s) only for closed generic type, where
+        /// <paramref name="impl"/> is regestered open generic dependency
+        /// <paramref name="closedGenericType"/> is passed in Resolve() closed generic type
+        /// <paramref name="dependency"/> is implementation which is passed as parameter in constructor
+        ///    </summary>
         private object ProduceCurrentGenericImplementation(TypeDef impl, Type closedGenericType, object dependency)
         {
             if(impl.IsSingleton)
-            {
-                return GetOrCreateSingletonInstance(closedGenericType,new List<object>() {dependency});
-            }
+                 return GetOrCreateSingletonInstance(closedGenericType,new List<object>() {dependency});
             else 
                 return CreateObject(closedGenericType, new List<object>() { dependency });
         }
 
+        ///<summary>
+        /// Retrive implementation(s) for  <paramref name="abstractionType"/>
+        ///    </summary>
         private dynamic ResolveAbstractionConfig(Type abstractionType)
         {
             var config = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType);
+            //if open generic were registered but actually in Resolve() were passed closed generic type
             if((config == null)  && (abstractionType.IsGenericType ) )
             {
-                var abstrConfig = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType.GetGenericTypeDefinition());
-                var implClass = abstrConfig[0];
+                var implClass = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType.GetGenericTypeDefinition())[0]; // retrieve config for open generic
                 Type nestedType = abstractionType.GetGenericArguments()[0];
-                var nestedTypeImpl = _dependencyConfiguration.GetConfigurationForAbstraction(nestedType)[0];
-                object resolvedNestedImpl = ProduceCurrentImplementation(nestedTypeImpl);
+                var nestedTypeImpl = _dependencyConfiguration.GetConfigurationForAbstraction(nestedType)[0]; // retrieve config for nested type in passed closed generic
+                object resolvedNestedImpl = ProduceCurrentImplementation(nestedTypeImpl); // produce nested type implementation
                 Type closedGenericType = implClass.Type.MakeGenericType(new Type[] { nestedType });
-                var genericImpl = ProduceCurrentGenericImplementation(implClass, closedGenericType, resolvedNestedImpl);
+                var genericImpl = ProduceCurrentGenericImplementation(implClass, closedGenericType, resolvedNestedImpl);  // produce closed generic type implementation
                 return genericImpl;
                 
             }
-
+            // if multiple implementations exist for current abstraction
             if (config.Count > 1)
             {
                 var resolvedImplsList = new List<object>();
@@ -146,46 +161,38 @@ namespace mpp_5
                 }
                 return resolvedImplsList[0];
             }
-            else
+            else  // if single implementation exists for current abstraction
             {
                 var implClass = config[0];
                 object instance = ProduceCurrentImplementation(implClass);
                 return instance;
             }
-
-            //else if (abstractionType.IsGenericType)
-            //{
-
-            //    return default;
-            //}
-           
-
-
                       
         }
 
-        private IEnumerable<TAbstraction> ProduceMultipleImplementations<TAbstraction>()
+        ///<summary>
+        ///Dynamically invoked method for multiple dependencies
+        ///    </summary>
+        private IEnumerable<TAbstraction> ResolveAbstractionMultipleConfigs<TAbstraction>()
         {
            
             var implClassList = _dependencyConfiguration.GetConfigurationForAbstraction(typeof(TAbstraction));
             var resolvedImpls = new List<TAbstraction>();
             foreach (var implClass in implClassList)
-            {
-                resolvedImpls.Add((TAbstraction)ProduceCurrentImplementation(implClass));
-            }
-
+                 resolvedImpls.Add((TAbstraction)ProduceCurrentImplementation(implClass));
+           
             return resolvedImpls;
            
         }
-
-       
+         
 
         public dynamic Resolve<TAbstraction>()
         {
+            //dynamically invoke method when TAbstraction is IEnumerable<TRealAbstraction>
             if(typeof(TAbstraction).GetInterface("IEnumerable") != null)
             {
                 var abstrType = typeof(TAbstraction).GetGenericArguments()[0];
-                var method = typeof(DependencyProvider).GetMethod("ProduceMultipleImplementations", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var method = typeof(DependencyProvider).GetMethod("ResolveAbstractionMultipleConfigs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                 var resolvedImplsList = method.MakeGenericMethod(new Type[] { abstrType }).Invoke(this,new object[] { });
                 return resolvedImplsList;
             }           
