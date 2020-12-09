@@ -4,7 +4,7 @@ using System.Text;
 
 namespace mpp_5
 {
-    internal class IneligibleImplementationException : Exception
+    public class IneligibleImplementationException : Exception
     {
         public IneligibleImplementationException()
         {

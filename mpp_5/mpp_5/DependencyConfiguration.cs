@@ -68,6 +68,17 @@ namespace mpp_5
         {
             RegisterTransient(typeof(TAbstraction), typeof(TImplementation));
         }
+
+        public bool Unregister<TAbstraction>()
+        {
+            var abstractionKey = typeof(TAbstraction);
+            if (Configurations.ContainsKey(abstractionKey))
+            {
+                return Configurations.Remove(abstractionKey); 
+            }
+            return false;          
+
+        }
     }
 
 }
