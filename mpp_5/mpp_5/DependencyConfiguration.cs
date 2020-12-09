@@ -79,6 +79,13 @@ namespace mpp_5
             return false;          
 
         }
+    
+        public void RegisterTransientNamed<TAbstraction, TImplementation>(int dependencyName)
+        {
+            var implementationValue = new TypeDef(typeof(TImplementation),false,dependencyName);
+            Register(typeof(TAbstraction), implementationValue);
+        }
     }
+
 
 }

@@ -100,16 +100,32 @@ namespace mpp_5
             {
                 foreach (var parameter in parameters)
                 {
+                    // if dependency also were registered in config
                     if (_dependencyConfiguration.Configurations.TryGetValue(parameter.ParameterType, out List<TypeDef> nestedImpls)) 
                     {
-                        // if dependency also were registered in config
-                        var abstractionType = parameter.ParameterType;
-                        argumentsList.Add(ResolveAbstractionConfig(abstractionType));
+                        //if has named dependency in constructor(marked with KeyDependencyAttribute)
+                        if(parameter.GetCustomAttributes(typeof(DependencyKeyAttribute),false).Length != 0 )
+                        {
+                            var dependencyKey =(DependencyKeyAttribute)parameter.GetCustomAttributes(typeof(DependencyKeyAttribute), false)[0];
+                            foreach(var namedImpl in nestedImpls)
+                            {
+                                if (namedImpl.Name == dependencyKey.DependencyName)
+                                {
+                                    argumentsList.Add(ProduceCurrentImplementation(namedImpl));
+                                    break;
+                                }
+                            }
+                            
+                        }
+                        else
+                        {
+                            var abstractionType = parameter.ParameterType;
+                            argumentsList.Add(ResolveAbstractionConfig(abstractionType));
+                        }
+                       
                     }
                     else
-                    {
                         argumentsList.Add(default);
-                    }
                 }
             }
             
@@ -140,17 +156,35 @@ namespace mpp_5
         {
             var config = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType);
             //if open generic were registered but actually in Resolve() were passed closed generic type
-            if((config == null)  && (abstractionType.IsGenericType ) )
+            if(config == null) 
             {
-                var implClass = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType.GetGenericTypeDefinition())[0]; // retrieve config for open generic
-                Type nestedType = abstractionType.GetGenericArguments()[0];
-                var nestedTypeImpl = _dependencyConfiguration.GetConfigurationForAbstraction(nestedType)[0]; // retrieve config for nested type in passed closed generic
-                object resolvedNestedImpl = ProduceCurrentImplementation(nestedTypeImpl); // produce nested type implementation
-                Type closedGenericType = implClass.Type.MakeGenericType(new Type[] { nestedType });
-                var genericImpl = ProduceCurrentGenericImplementation(implClass, closedGenericType, resolvedNestedImpl);  // produce closed generic type implementation
-                return genericImpl;
+                if (abstractionType.IsGenericType)
+                {
+                    try
+                    {
+                        var implClass = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType.GetGenericTypeDefinition())[0]; // retrieve config for open generic
+                        Type nestedType = abstractionType.GetGenericArguments()[0];
+                        var nestedTypeImpl = _dependencyConfiguration.GetConfigurationForAbstraction(nestedType)[0]; // retrieve config for nested type in passed closed generic
+                        object resolvedNestedImpl = ProduceCurrentImplementation(nestedTypeImpl); // produce nested type implementation
+                        Type closedGenericType = implClass.Type.MakeGenericType(new Type[] { nestedType });
+                        var genericImpl = ProduceCurrentGenericImplementation(implClass, closedGenericType, resolvedNestedImpl);  // produce closed generic type implementation
+                        return genericImpl;
+                    }
+                    catch (UnregisteredAbstractionTypeException)
+                    {
+                        return null;
+                    }
+                   
+                   
+                }
+                else
+                {
+                    throw new UnregisteredAbstractionTypeException(String.Format("Type {0} has not been registered.", abstractionType.Name));
+                }
+                
                 
             }
+            
             // if multiple implementations exist for current abstraction
             if (config.Count > 1)
             {
@@ -166,7 +200,7 @@ namespace mpp_5
                 var implClass = config[0];
                 object instance = ProduceCurrentImplementation(implClass);
                 return instance;
-            }
+            }            
                       
         }
 
@@ -198,6 +232,22 @@ namespace mpp_5
             }           
             else
                 return ResolveAbstractionConfig(typeof(TAbstraction));
+        }
+
+        public dynamic ResolveNamed<TAbstraction>(int dependencyName)
+        {
+            var abstractionType = typeof(TAbstraction);
+            try
+            {
+                var implClass = _dependencyConfiguration.GetConfigurationForAbstraction(abstractionType).Find(impl => impl.Name == dependencyName);
+                object instance = ProduceCurrentImplementation(implClass);
+                return instance;
+            }
+            catch(UnregisteredAbstractionTypeException)
+            {
+                return null;
+            }          
+            
         }
 
     }

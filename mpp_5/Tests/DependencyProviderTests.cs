@@ -124,5 +124,51 @@ namespace Tests
             Assert.AreEqual(expectedMessage, receivedMessage);
         }
 
+        [Test]
+        public void ResolvedNamed_NamedDependencyWithEnumValue_DependencyType()
+        {
+            var dependencies = new DependencyConfiguration();
+            dependencies.RegisterTransientNamed<IService, ServiceImpl1>((int)ServiceImplementations.First);
+            dependencies.RegisterTransientNamed<IService, ServiceImpl2>((int)ServiceImplementations.Second);
+            var provider = new DependencyProvider(dependencies);
+            var service = provider.ResolveNamed<IService>((int)ServiceImplementations.Second);
+            Type expectedType = typeof(ServiceImpl2);
+            Type receivedType = service.GetType();
+            Assert.AreEqual(expectedType, receivedType);
+        }
+
+        [Test]
+        public void Resolve_UnregistredAbstractionType_ExceptionMessage()
+        {
+            var dependencies = new DependencyConfiguration();
+            var provider = new DependencyProvider(dependencies); 
+            string expectedMessage = "Type IService has not been registered.";
+            string receivedMessage = "";
+            try
+            {
+                ServiceImplWithNesting1 service = provider.Resolve<IService>();
+            }
+            catch(UnregisteredAbstractionTypeException e)
+            {
+                receivedMessage = e.Message;
+            }
+            Assert.AreEqual(expectedMessage, receivedMessage);
+        }
+
+        [Test]
+        public void Resolve_NestedNamedDependencyWithEnumValue_NestedDependencyType()
+        {
+            var dependencies = new DependencyConfiguration();
+            dependencies.RegisterTransientNamed<IService, ServiceImpl1>((int)ServiceImplementations.First);
+            dependencies.RegisterTransientNamed<IService, ServiceImpl2>((int)ServiceImplementations.Second);
+            dependencies.RegisterTransient<SomeAnotherService, SomeAnotherService>();
+            var provider = new DependencyProvider(dependencies);
+            var service = (SomeAnotherService)provider.Resolve<SomeAnotherService>();
+            Type expectedType = typeof(ServiceImpl2);
+            Type receivedType = service._ser.GetType();
+            Assert.AreEqual(expectedType, receivedType);
+        }
+
+
     }
 }

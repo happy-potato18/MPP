@@ -1,4 +1,5 @@
-﻿using System;
+﻿using mpp_5;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -51,5 +52,21 @@ namespace Tests
         public IService _ser;
         public RepositoryImplWiithNesting(IService service) { _ser = service; }
     }
+
+    enum ServiceImplementations
+    {
+        First,
+        Second
+    }
+
+    class SomeAnotherService
+    {
+        public IService _ser;
+        public SomeAnotherService([DependencyKey((int)ServiceImplementations.Second)] IService service)
+        {
+            _ser = service;
+        }
+    }
+
 
 }
